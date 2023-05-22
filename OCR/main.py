@@ -2,15 +2,16 @@ import os
 import numpy as np
 import cv2
 import func
+import pytesseract
 
 dir_pth = os.path.dirname(os.path.abspath(__file__))
 img = cv2.imread(os.path.join(dir_pth, 'img_1.jpg'))
-img = cv2.resize(img, (1024, 768))
+# img = cv2.resize(img, (1024, 768))
 img_copy = img.copy()
 ### 圖像前處理，方便之後抓取輪廓
 img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 img_gray = cv2.GaussianBlur(img_gray, (5, 5), 0) # 過濾雜訊
-canny = cv2.Canny(img_gray, 150, 200)
+canny = cv2.Canny(img_gray, 50, 200)
 img_new = cv2.dilate(canny, (np.ones((5, 5), np.uint8))) # 膨脹邊緣，不然發票邊緣太細，findContours會無法抓到
 
 ### 找到要進行OCR的文件輪廓
@@ -33,10 +34,16 @@ height = max(int(np.sqrt(sum((rect[2] - rect[0]) ** 2))), int(np.sqrt(sum((rect[
 dst = np.array([[0, 0], [width, 0], [width, height], [0, height]], dtype='float32') # 要轉換過去的座標
 M = cv2.getPerspectiveTransform(rect, dst) # 得到透視矩陣
 warped = cv2.warpPerspective(img_copy, M, (width, height)) # 輸入原本文件位置及透視矩陣得到新的矩陣
-warped = cv2.resize(warped, (0, 0), fx=0.5, fy=0.5)
+ratio = 1 / (warped.shape[1] / 256)
+warped = cv2.resize(warped, (0, 0), fx=ratio, fy=ratio)
+warped_gray = cv2.cvtColor(warped, cv2.COLOR_BGR2GRAY)
+_, warped_res = cv2.threshold(warped_gray, 127, 255, cv2.THRESH_BINARY)
 cv2.imshow('warped', warped)
+cv2.imshow('warped_res', warped_res)
 if cv2.waitKey(0) == ord('q'):
     cv2.destroyAllWindows()
 
 ### 偵測文字
-# to be continued...
+text = pytesseract.image_to_string(warped_gray, lang="chi_tra+eng")
+print('The result of OCR recognition:')
+print(text)
